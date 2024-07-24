@@ -6,6 +6,7 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 
+#define BUF_SIZE 1024
 
 struct finfo {
     char fname[256];
@@ -13,7 +14,7 @@ struct finfo {
 };
 
 void error_handling(char *message);
-void recv_file(int sock,FILE *f);
+void recv_file(int sock,struct finfo info);
 
 int main(int argc, char* argv[]){
     int sock;
@@ -35,57 +36,70 @@ int main(int argc, char* argv[]){
 
     if(connect(sock, (struct sockaddr*)&serv_addr, sizeof(serv_addr))==-1) 
 		error_handling("connect() error!");
-     
-
+    
 
     int count;
     int recv_len = recv(sock, &count, sizeof(count),0);
     if(recv_len == -1)
         error_handling("recv() error 1");
-    struct finfo recv_finfo[count];
-    //여기 while문 써야함 왜 이렇게는 안되는거지?
-    // while((recv_len = recv(sock,recv_finfo,sizeof(recv_finfo),0))>0){
-    //     if(recv_len == -1){
-    //         error_handling("recv() error 2");
-    //     }
+
+    struct finfo* recv_finfo;
+    recv_finfo = (struct finfo*)malloc(sizeof(struct finfo) * count); 
+    for(int i=0;  i<count; i++){
+        int offset = 0;
+        char buffer[sizeof(struct finfo)];
+        while((recv_len = recv(sock,buffer, sizeof(struct finfo),0))>0){
+            memcpy(&recv_finfo[i]+offset, buffer, recv_len);
+            offset += recv_len;
+            if(offset>=sizeof(struct finfo)) break;
+        }
+    }
+    
+    // recv_len == recv(sock,recv_finfo,sizeof(recv_finfo),0);
+    // if(recv_len == -1){
+    //     error_handling("recv() error 2");
     // }
-    recv_len == recv(sock,recv_finfo,sizeof(recv_finfo),0);
-    if(recv_len == -1){
-        error_handling("recv() error 2");
+
+    while(1){
+        printf("----------list of file----------\n");
+        for(int i=0; i<count; i++){
+            printf("%3d %20s %d\n",i,recv_finfo[i].fname, recv_finfo[i].fsize);
+        }
+
+        int num;
+        printf("\nchoose number which you want to receive a file from server\n");
+        printf("if you want to quit, enter -1\n");
+        
+        scanf("%d", &num);
+        send(sock, &num, sizeof(num),0);
+        if(num == -1){
+            break;
+        }
+        //fwrite하기
+        recv_file(sock,recv_finfo[num]);
     }
 
-    printf("----------list of file----------\n");
-    for(int i=0; i<count; i++){
-        printf("%3d %20s %d\n",i,recv_finfo[i].fname, recv_finfo[i].fsize);
-    }
-    int num;
-    printf("\nchoose number which you want to receive a file from server\n");
-    scanf("%d", &num);
-    send(sock, &num, sizeof(num),0);
-
-    //fwrite하기
-    FILE* f;
-    if((f = fopen(recv_finfo[num].fname,"wb"))==NULL){
-        error_handling("file open failed");
-    }
-    recv_file(sock,f);
-
-
+    free(recv_finfo);
     close(sock);
     return 0;
 }
 
-void recv_file(int sock,FILE *f){
-    int buff_size = 1024;
-    char buffer[buff_size];
+void recv_file(int sock,struct finfo info){
+    char buffer[BUF_SIZE];
     int read_cnt;
+    int offset = 0;
 
-    while((read_cnt = read(sock, buffer, buff_size))!=0){
-        fwrite(buffer, 1, read_cnt,f);
+    FILE* f;
+    if((f = fopen(info.fname,"wb"))==NULL){
+        error_handling("file open failed");
     }
 
-    fclose(f);
-    
+    while((read_cnt = read(sock, buffer, BUF_SIZE))!=0){
+        offset+=fwrite(buffer, 1, read_cnt,f);
+        if(offset>=info.fsize) break;
+    }
+
+    fclose(f);   
 }
 
 void error_handling(char *message)
