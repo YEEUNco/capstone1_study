@@ -13,8 +13,30 @@ struct finfo {
     u_int32_t fsize;
 };
 
-void error_handling(char *message);
-void recv_file(int sock,struct finfo info);
+void recv_file(int sock,struct finfo info){
+    char buffer[BUF_SIZE];
+    int read_cnt;
+    int offset = 0;
+
+    FILE* f;
+    if((f = fopen(info.fname,"wb"))==NULL){
+        error_handling("file open failed");
+    }
+
+    while((read_cnt = read(sock, buffer, BUF_SIZE))!=0){
+        offset+=fwrite(buffer, 1, read_cnt,f);
+        if(offset>=info.fsize) break;
+    }
+
+    fclose(f);   
+}
+
+void error_handling(char *message)
+{
+	fputs(message, stderr);
+	fputc('\n', stderr);
+	exit(1);
+}
 
 int main(int argc, char* argv[]){
     int sock;
@@ -82,29 +104,4 @@ int main(int argc, char* argv[]){
     free(recv_finfo);
     close(sock);
     return 0;
-}
-
-void recv_file(int sock,struct finfo info){
-    char buffer[BUF_SIZE];
-    int read_cnt;
-    int offset = 0;
-
-    FILE* f;
-    if((f = fopen(info.fname,"wb"))==NULL){
-        error_handling("file open failed");
-    }
-
-    while((read_cnt = read(sock, buffer, BUF_SIZE))!=0){
-        offset+=fwrite(buffer, 1, read_cnt,f);
-        if(offset>=info.fsize) break;
-    }
-
-    fclose(f);   
-}
-
-void error_handling(char *message)
-{
-	fputs(message, stderr);
-	fputc('\n', stderr);
-	exit(1);
 }
