@@ -44,13 +44,14 @@ int main(int argc, char *argv[]){
 
     //파일 목록 읽어옴
     int count = file_count();
-    struct finfo list[count];
+    struct finfo *list;
+    list = (struct finfo*)malloc(sizeof(struct finfo) * count);
     get_file_list(list);
 
-    // //debug list 안에 잘 들어왔음?
-    // for(int i=0; i<count;i++){
-    //     printf("%3d %20s %d\n",i,list[i].fname, list[i].fsize);
-    // }
+    //debug list 안에 잘 들어왔음?
+    for(int i=0; i<count;i++){
+        printf("%3d %20s %d\n",i,list[i].fname, list[i].fsize);
+    }
     
     //send file 갯수
     if(send(clnt_sock, &count, sizeof(count),0)==-1){
@@ -58,9 +59,10 @@ int main(int argc, char *argv[]){
     }
     
     //list struct보냄
-    if(send(clnt_sock, list, sizeof(list), 0) == -1){
+    if(send(clnt_sock, list, sizeof(struct finfo) * count, 0) == -1){
         error_handling("send() error2");
     }
+    shutdown(clnt_sock, SHUT_WR);
     //read
     int num;
     if(recv(clnt_sock,&num, sizeof(num),0) == -1){
@@ -70,7 +72,7 @@ int main(int argc, char *argv[]){
     //해당 파일 전송
     send_file(clnt_sock, list[num].fname);
     
-
+    free(list);
     close(clnt_sock);
     close(serv_sock);
     return 0;
@@ -122,26 +124,22 @@ void get_file_list(struct finfo *list){
 void send_file(int clnt_sock, char *file_name){
     int buffer_size=1024;
     char buff[buffer_size];
-    long file_size;
-    size_t result;
-    FILE *f;
-
-    if((f=fopen(file_name,"rb"))==NULL){
+    FILE *fp;
+    int read_cnt;
+    if((fp=fopen(file_name,"rb"))==NULL){
         error_handling("file open failed");
     }
 
-    while (1) {
-        int read_cnt = fread((void*)buff, 1, buffer_size,f);
-        if(read_cnt < buffer_size){
+    while ((read_cnt = fread((void*)buff, 1, buffer_size,fp)) > 0) {
+        int written = 0;
+        if(written < read_cnt){
             //debug
             // printf("%s\n", buff);
-            write(clnt_sock, buff, read_cnt);
-            break;
+            written += write(clnt_sock, buff + written, read_cnt - written);
         }
-        write(clnt_sock, buff, buffer_size);
     }
 
-    fclose(f);
+    fclose(fp);
 }
 
 void error_handling(char *message){
