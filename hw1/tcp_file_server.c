@@ -34,8 +34,11 @@ int main(int argc, char *argv[]){
 	serv_addr.sin_addr.s_addr = htonl(INADDR_ANY);
 	serv_addr.sin_port = htons(atoi(argv[1]));
 	
-	bind(serv_sock, (struct sockaddr*)&serv_addr, sizeof(serv_addr));
-	listen(serv_sock, 5);
+	if (bind(serv_sock, (struct sockaddr*) &serv_addr, sizeof(serv_addr)) == -1)
+		error_handling("bind() error");
+
+	if (listen(serv_sock, 5) == -1)
+		error_handling("listen() error");
 	
 	clnt_addr_size=sizeof(clnt_addr);  
 	clnt_sock=accept(serv_sock, (struct sockaddr*)&clnt_addr,&clnt_addr_size);
@@ -49,28 +52,34 @@ int main(int argc, char *argv[]){
     get_file_list(list);
 
     //debug list 안에 잘 들어왔음?
-    for(int i=0; i<count;i++){
-        printf("%3d %20s %d\n",i,list[i].fname, list[i].fsize);
+    // for(int i=0; i<count;i++){
+    //     printf("%3d %20s %d\n",i,list[i].fname, list[i].fsize);
+    // }
+    while(1){
+        //send file 갯수
+        if(send(clnt_sock, &count, sizeof(count),0)==-1){
+            error_handling("send() error1");
+        }
+        
+        //list struct보냄
+        for (int i=0; i<count; i++){
+            if((send(clnt_sock, &list[i], sizeof(struct finfo), 0)) == -1){
+                error_handling("send() error2");
+            }
+        }
+        
+        //read
+        int num;
+        if(recv(clnt_sock,&num, sizeof(num),0) == -1){
+            error_handling("recv() error1");
+        }
+        if(num == -1)
+            break;
+        
+        //해당 파일 전송
+        send_file(clnt_sock, list[num].fname);
     }
     
-    //send file 갯수
-    if(send(clnt_sock, &count, sizeof(count),0)==-1){
-        error_handling("send() error1");
-    }
-    
-    //list struct보냄
-    if(send(clnt_sock, list, sizeof(struct finfo) * count, 0) == -1){
-        error_handling("send() error2");
-    }
-    shutdown(clnt_sock, SHUT_WR);
-    //read
-    int num;
-    if(recv(clnt_sock,&num, sizeof(num),0) == -1){
-        error_handling("recv() error1");
-    }
-    
-    //해당 파일 전송
-    send_file(clnt_sock, list[num].fname);
     
     free(list);
     close(clnt_sock);
