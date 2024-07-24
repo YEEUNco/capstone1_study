@@ -11,82 +11,6 @@ struct finfo{
     u_int32_t fsize;
 };
 
-void error_handling(char *message);
-int file_count();
-void get_file_list(struct finfo *list);
-void send_file(int clnt_sock, char *file_name);
-
-int main(int argc, char *argv[]){
-    int serv_sock, clnt_sock;
-
-    struct sockaddr_in serv_addr, clnt_addr;
-    socklen_t clnt_addr_size;
-
-    if (argc != 2) {
-		printf("Usage: %s <port>\n", argv[0]);
-		exit(1);
-	}
-
-    serv_sock = socket(PF_INET, SOCK_STREAM, 0);   
-
-    memset(&serv_addr, 0, sizeof(serv_addr));
-	serv_addr.sin_family = AF_INET;
-	serv_addr.sin_addr.s_addr = htonl(INADDR_ANY);
-	serv_addr.sin_port = htons(atoi(argv[1]));
-	
-	if (bind(serv_sock, (struct sockaddr*) &serv_addr, sizeof(serv_addr)) == -1)
-		error_handling("bind() error");
-
-	if (listen(serv_sock, 5) == -1)
-		error_handling("listen() error");
-	
-	clnt_addr_size=sizeof(clnt_addr);  
-	clnt_sock=accept(serv_sock, (struct sockaddr*)&clnt_addr,&clnt_addr_size);
-	if(clnt_sock==-1)
-		error_handling("accept() error");  
-
-    //파일 목록 읽어옴
-    int count = file_count();
-    struct finfo *list;
-    list = (struct finfo*)malloc(sizeof(struct finfo) * count);
-    get_file_list(list);
-
-    //debug list 안에 잘 들어왔음?
-    // for(int i=0; i<count;i++){
-    //     printf("%3d %20s %d\n",i,list[i].fname, list[i].fsize);
-    // }
-    while(1){
-        //send file 갯수
-        if(send(clnt_sock, &count, sizeof(count),0)==-1){
-            error_handling("send() error1");
-        }
-        
-        //list struct보냄
-        for (int i=0; i<count; i++){
-            if((send(clnt_sock, &list[i], sizeof(struct finfo), 0)) == -1){
-                error_handling("send() error2");
-            }
-        }
-        
-        //read
-        int num;
-        if(recv(clnt_sock,&num, sizeof(num),0) == -1){
-            error_handling("recv() error1");
-        }
-        if(num == -1)
-            break;
-        
-        //해당 파일 전송
-        send_file(clnt_sock, list[num].fname);
-    }
-    
-    
-    free(list);
-    close(clnt_sock);
-    close(serv_sock);
-    return 0;
-}
-
 //원래는 struct finfo list[1000]; 이렇게 했는데 client에서 받을 때 문제 발생
 int file_count(){
     DIR *d;
@@ -155,4 +79,71 @@ void error_handling(char *message){
 	fputs(message, stderr);
 	fputc('\n', stderr);
 	exit(1);
+}
+
+int main(int argc, char *argv[]){
+    int serv_sock, clnt_sock;
+
+    struct sockaddr_in serv_addr, clnt_addr;
+    socklen_t clnt_addr_size;
+
+    if (argc != 2) {
+		printf("Usage: %s <port>\n", argv[0]);
+		exit(1);
+	}
+
+    serv_sock = socket(PF_INET, SOCK_STREAM, 0);   
+
+    memset(&serv_addr, 0, sizeof(serv_addr));
+	serv_addr.sin_family = AF_INET;
+	serv_addr.sin_addr.s_addr = htonl(INADDR_ANY);
+	serv_addr.sin_port = htons(atoi(argv[1]));
+	
+	if (bind(serv_sock, (struct sockaddr*) &serv_addr, sizeof(serv_addr)) == -1)
+		error_handling("bind() error");
+
+	if (listen(serv_sock, 5) == -1)
+		error_handling("listen() error");
+	
+	clnt_addr_size=sizeof(clnt_addr);  
+	clnt_sock=accept(serv_sock, (struct sockaddr*)&clnt_addr,&clnt_addr_size);
+	if(clnt_sock==-1)
+		error_handling("accept() error");  
+
+    //파일 목록 읽어옴
+    int count = file_count();
+    struct finfo *list;
+    list = (struct finfo*)malloc(sizeof(struct finfo) * count);
+    get_file_list(list);
+
+    while(1){
+        //send file 갯수
+        if(send(clnt_sock, &count, sizeof(count),0)==-1){
+            error_handling("send() error1");
+        }
+        
+        //list struct보냄
+        for (int i=0; i<count; i++){
+            if((send(clnt_sock, &list[i], sizeof(struct finfo), 0)) == -1){
+                error_handling("send() error2");
+            }
+        }
+        
+        //read
+        int num;
+        if(recv(clnt_sock,&num, sizeof(num),0) == -1){
+            error_handling("recv() error1");
+        }
+        if(num == -1)
+            break;
+        
+        //해당 파일 전송
+        send_file(clnt_sock, list[num].fname);
+    }
+    
+    
+    free(list);
+    close(clnt_sock);
+    close(serv_sock);
+    return 0;
 }
