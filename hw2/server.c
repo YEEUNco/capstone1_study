@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <time.h>
 #include <arpa/inet.h>
 #include <sys/socket.h>
 
@@ -28,6 +29,8 @@ int main(int argc, char *argv[])
 	char message[BUF_SIZE];
 	int str_len;
 	socklen_t clnt_adr_sz;
+	int data_total=0;
+	clock_t start, finish;
 	
 	struct sockaddr_in serv_adr, clnt_adr;
 	if (argc != 2) {
@@ -54,7 +57,7 @@ int main(int argc, char *argv[])
 		error_handling("file open failed");
 
 	
-
+	start=clock();
 	while (1) 
 	{
 		clnt_adr_sz = sizeof(clnt_adr);
@@ -63,9 +66,10 @@ int main(int argc, char *argv[])
 	
 		int recv_len = recvfrom(serv_sock, &frame_recv, sizeof(struct frame),0,(struct sockaddr*)&clnt_adr, &clnt_adr_sz);
 		if(recv_len > 0 && frame_recv.sq_no==frame_id && frame_recv.frame_kind==1){
-			printf("[+]%dFrame Received: \n", frame_recv.sq_no); // 일단 txt파일로 테스트해야하니깐
+			printf("[+]%dFrame Received: \n", frame_recv.sq_no); 
 			int len = fwrite(frame_recv.data,1,frame_recv.real_size,fp); 
 			printf("fwrite_len: %d, real_size: %d\n",len,frame_recv.real_size);
+			data_total += len;
 
 			frame_send.sq_no = 0;
 			frame_send.frame_kind = 0;
@@ -80,8 +84,9 @@ int main(int argc, char *argv[])
 		}
 	}	
 	fclose(fp);
+	finish = clock();
 
-
+	printf("Throughout: %0.3f",(float)data_total/((double)(finish-start)/CLOCKS_PER_SEC));
 	close(serv_sock);
 	return 0;
 }
