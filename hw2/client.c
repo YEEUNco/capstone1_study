@@ -50,7 +50,8 @@ int main(int argc, char *argv[])
 		exit(1);
 	}
 	
-	sock = socket(PF_INET, SOCK_DGRAM, 0);   
+	sock = socket(PF_INET, SOCK_DGRAM, 0);  
+
 	if (sock == -1)
 		error_handling("socket() error");
 	
@@ -60,42 +61,38 @@ int main(int argc, char *argv[])
 	serv_adr.sin_port = htons(atoi(argv[2]));
 
 	int frame_id = 0;
-	int ack_recv = 1;
+	int ack_recv = 0;
 
 	char buff[BUF_SIZE];
 	int read_cnt;
 	
 	FILE *fp;
-	if((fp = fopen("30mb.jpg","rb"))==NULL){
+	if((fp = fopen("img.jpg","rb"))==NULL){
 		error_handling("file open failed");
 	}
 	
 	int for_timeout=5000;
 	int total =0;
+	int timeout_check;
 
 	while ((read_cnt=fread((void*)buff, 1, BUF_SIZE, fp))>0)
 	{
-		int timeout_check;
 		struct frame frame_send;
 		struct frame frame_recv;
 		clock_t start, finish;
+
+		frame_send.sq_no = frame_id;
+		frame_send.frame_kind = 1;
+		frame_send.ack = 0;
+		memcpy(frame_send.data,buff,read_cnt);
+		frame_send.real_size = read_cnt;
+
+		ack_recv=0;
 		
-		while(1){
-			if(ack_recv==1){ // 깔끔하게 바꾸려면 이 부분을 밖으로 빼고 ack_recv=0으로 들어오게 바꾸면 됨
-				frame_send.sq_no = frame_id;
-				frame_send.frame_kind = 1;
-				frame_send.ack = 0;
-				memcpy(frame_send.data,buff,read_cnt);
-				frame_send.real_size = read_cnt;
-				
-				sendto(sock, &frame_send, sizeof(frame_send), 0, (struct sockaddr*)&serv_adr, sizeof(serv_adr));
-				printf("[+]Frame Send: %d\n", frame_send.sq_no);
-				start = clock();
-			}
-			else { // 다시 보내줘야 함
-				sendto(sock, &frame_send, sizeof(frame_send), 0, (struct sockaddr*)&serv_adr, sizeof(serv_adr));
-				printf("[+]Frame Send again\n");
-			}
+		while(ack_recv==0){
+			sendto(sock, &frame_send, sizeof(frame_send), 0, (struct sockaddr*)&serv_adr, sizeof(serv_adr));
+			printf("[+]Frame Send: %d\n", frame_send.sq_no);
+			start = clock();
 
 			timeout_check = timeout(sock, 0,for_timeout);
 
@@ -110,11 +107,13 @@ int main(int argc, char *argv[])
 					printf("[+]Ack Received\n");
 					ack_recv = 1;
 					frame_id++;
+
 					total += (finish-start);
 					for_timeout = (int)(((double)total / frame_id) * 1000);// 평균값?
 					printf("timeout : %d\n", for_timeout);
 					if(for_timeout<13000)
 						for_timeout=13000; 
+
 					break;
 				}else{
 					printf("[-]Ack Not Received\n");
@@ -130,14 +129,38 @@ int main(int argc, char *argv[])
 	fclose(fp);
 	
 	struct frame frame_send;
+	struct frame frame_recv;
 
 	frame_send.frame_kind = 2;
 	frame_send.sq_no = frame_id;
 	frame_send.ack = 0;
 	
-	sendto(sock, &frame_send, sizeof(frame_send), 0,(struct sockaddr*)&serv_adr, sizeof(serv_adr));
-	sendto(sock, &frame_send, sizeof(frame_send), 0,(struct sockaddr*)&serv_adr, sizeof(serv_adr));
+	ack_recv =0;
 
+	clock_t start, finish;
+
+	while(ack_recv==0){
+		sendto(sock, &frame_send, sizeof(frame_send), 0,(struct sockaddr*)&serv_adr, sizeof(serv_adr));
+		start = clock();
+		
+		timeout_check = timeout(sock,0,for_timeout);
+		if(timeout_check==-1)
+				error_handling("timeout error");
+
+		if(timeout>0){
+			int addr_size = sizeof(serv_adr);
+			int frame_kind;
+			int recv_len = recvfrom(sock,&frame_kind,sizeof(frame_kind), 0,(struct sockaddr*)&serv_adr, &addr_size);
+
+			ack_recv = 1;
+		}
+		else{
+			printf("[-]Ack Not Received\n");
+		}
+
+
+	}
+	
 	close(sock);
 	return 0;
 }
