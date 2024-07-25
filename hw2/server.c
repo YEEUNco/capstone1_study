@@ -78,13 +78,19 @@ int main(int argc, char *argv[])
 			printf("[+]Ack Send\n");
 			frame_id++;
 		}
-		else if(frame_recv.frame_kind==2) break;
+		else if(frame_recv.frame_kind==2) {
+			int frame_kind = 0;
+			sendto(serv_sock,&frame_send,sizeof(frame_send), 0,(struct sockaddr*)&clnt_adr,clnt_adr_sz);
+			break;
+		}
 		else {
 			printf("[+]Frame Not Received\n");
 		}
 	}	
 	fclose(fp);
 	finish = clock();
+
+
 
 	printf("Throughout: %0.3f",(float)data_total/((double)(finish-start)/CLOCKS_PER_SEC));
 	close(serv_sock);
