@@ -66,26 +66,22 @@ int main(int argc, char *argv[])
 	int read_cnt;
 	
 	FILE *fp;
-	if((fp = fopen("img.JPG","rb"))==NULL){
+	if((fp = fopen("30mb.jpg","rb"))==NULL){
 		error_handling("file open failed");
 	}
 	
+	int for_timeout=5000;
+	int total =0;
 
 	while ((read_cnt=fread((void*)buff, 1, BUF_SIZE, fp))>0)
 	{
-
-		//패킷을 보낸다 + seq = 0인 정보도 함께 보내야 함
-		//ACK를 timer 시간안에 받는다.
-		//만약 ACK를 받았으면 다른거 보내줌
-		//그렇지 않으면 다시 한번 더 보내줌
 		int timeout_check;
 		struct frame frame_send;
 		struct frame frame_recv;
 		clock_t start, finish;
-		int for_timeout=5000;
-
+		
 		while(1){
-			if(ack_recv==1){
+			if(ack_recv==1){ // 깔끔하게 바꾸려면 이 부분을 밖으로 빼고 ack_recv=0으로 들어오게 바꾸면 됨
 				frame_send.sq_no = frame_id;
 				frame_send.frame_kind = 1;
 				frame_send.ack = 0;
@@ -114,7 +110,11 @@ int main(int argc, char *argv[])
 					printf("[+]Ack Received\n");
 					ack_recv = 1;
 					frame_id++;
-					for_timeout = (int)(finish - start)/frame_id; // 일단 평균값으로 하긴 했는데 이렇게 해도 되는지 모르겠음
+					total += (finish-start);
+					for_timeout = (int)(((double)total / frame_id) * 1000);// 평균값?
+					printf("timeout : %d\n", for_timeout);
+					if(for_timeout<13000)
+						for_timeout=13000; 
 					break;
 				}else{
 					printf("[-]Ack Not Received\n");
@@ -125,8 +125,6 @@ int main(int argc, char *argv[])
 				printf("[-]Ack Not Received\n");
 				ack_recv = 0;
 			}
-
-
 		}
 	}	
 	fclose(fp);
