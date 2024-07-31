@@ -117,10 +117,8 @@ int main(int argc, char* argv[])
     int sock;
     struct sockaddr_in serv_addr;
     int read_cnt;
-    char buf[BUF_SIZE]={0};
     char path[PATH_SIZE] = {0};
     int type=-1;
-    int offset=0;
 
     if(argc!=3)
     {
