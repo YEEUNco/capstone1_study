@@ -143,6 +143,7 @@ void sender(int max_peer, char *file_name, int seg_size, int listen_port)
     int *recv_sock;
     struct sockaddr_in send_addr,recv_addr;
     socklen_t recv_addr_size;
+    int option = 1;
 
     struct recv_info *ri;
 
@@ -153,6 +154,7 @@ void sender(int max_peer, char *file_name, int seg_size, int listen_port)
     file_count = split_file(file_data,file_name, seg_size);
 
     send_sock = socket(PF_INET, SOCK_STREAM, 0);
+    setsockopt(send_sock, SOL_SOCKET, SO_REUSEADDR, &option, sizeof(option));
 
     memset(&send_addr, 0, sizeof(send_addr));
     send_addr.sin_family = AF_INET;
@@ -273,8 +275,8 @@ void *recv_file_from_recv(void *arg)
             memcpy(buf+i,temp_buf,read_cnt);
             
             i+=read_cnt;
-            printf("read_cnt: %d\n", read_cnt);
-            printf("total_read_cnt: %d\n", i);
+            // printf("read_cnt: %d\n", read_cnt);
+            // printf("total_read_cnt: %d\n", i);
         }
         fi->contents = buf;
         // printf("%s\n",buf);
@@ -288,7 +290,7 @@ void *recv_file_from_recv(void *arg)
 
 void *send_file_to_recv(void *arg)
 {
-    printf("send_file_to_recv\n");
+    // printf("send_file_to_recv\n");
     struct for_sftr_thread sftr = *((struct for_sftr_thread*)arg);
     int sock = sftr.sock;
     struct file_info fi = sftr.fi;
@@ -319,6 +321,7 @@ void *get_file_from_sender(void *arg)
 
     int *sock_arr;
     struct sockaddr_in *addr_arr ;
+    int option = 1;
     int count = 0;
     int n_th;
     long file_size;
@@ -343,6 +346,7 @@ void *get_file_from_sender(void *arg)
         if(i == my_no)
             continue;
         sock_arr[i] = socket(PF_INET, SOCK_STREAM, 0);
+        setsockopt(sock_arr[i], SOL_SOCKET, SO_REUSEADDR, &option, sizeof(option));
         if(sock_arr[i] == -1)
 		    error_handling("socket() error");
         
@@ -353,8 +357,8 @@ void *get_file_from_sender(void *arg)
         addr_arr[i].sin_port=htons(ri_arr[i].port);
         printf("%d PORT: %d\n", i, ri_arr[i].port);
 
-        while(connect(sock_arr[i], (struct sockaddr*)&addr_arr[i], sizeof(addr_arr[i]))==-1) 
-		    printf("connect() error!\n");
+        while(connect(sock_arr[i], (struct sockaddr*)&addr_arr[i], sizeof(addr_arr[i]))==-1);
+		    // printf("connect() error!\n");
         printf("[%d] conntected!!\n", i);
         //몇개의 파일을 받아야하는지 알려줌
         write(sock_arr[i], &will_get_f, sizeof(will_get_f));
@@ -381,8 +385,8 @@ void *get_file_from_sender(void *arg)
             memcpy(buf+i,temp_buf,read_cnt);
             
             i+=read_cnt;
-            printf("read_cnt: %d\n", read_cnt);
-            printf("total_read_cnt: %d\n", i);
+            // printf("read_cnt: %d\n", read_cnt);
+            // printf("total_read_cnt: %d\n", i);
         }
         fi->contents = buf;
         // printf("%s\n", buf);
@@ -394,7 +398,7 @@ void *get_file_from_sender(void *arg)
             if(k == my_no)
                 continue;
             //항상 : sock, struct file_data
-            printf("k : %d\n", k);
+            // printf("k : %d\n", k);
             sftrth[count].sock = sock_arr[k];
             sftrth[count].fi = *fi;
             pthread_create(&t_id[count], NULL, send_file_to_recv, &sftrth[count]);
@@ -415,17 +419,17 @@ void *get_file_from_sender(void *arg)
 
 void save_file(struct file_info **fi, int file_count)
 {
-    printf("save_file\n");
+    // printf("save_file\n");
     FILE *fp;
     int write_cnt = 0;
     if((fp = fopen("save.jpg", "wb")) == NULL)
         error_handling("opening file failed");
 
     //debug
-    for(int i=0; i<file_count; i++)
-    {
-        printf("save_file** n_th: %d, file_size: %ld\n", fi[i]->n_th, fi[i]->file_size);
-    }
+    // for(int i=0; i<file_count; i++)
+    // {
+    //     printf("save_file** n_th: %d, file_size: %ld\n", fi[i]->n_th, fi[i]->file_size);
+    // }
     //debug
 
     for(int i = 0; i < file_count; i++)
@@ -434,7 +438,7 @@ void save_file(struct file_info **fi, int file_count)
         while(write_cnt < fi[i]->file_size)
         {
             write_cnt += fwrite(fi[i]->contents+write_cnt, 1, fi[i]->file_size - write_cnt,fp);
-            printf("write cnt: %d\n", write_cnt);
+            // printf("write cnt: %d\n", write_cnt);
         }
     }
 
@@ -461,6 +465,7 @@ void receiver(char *ip, int port, int listen_port)
 
     int my_sock;
     struct sockaddr_in my_addr;
+    int option = 1;
 
     struct file_info **fi;
     struct for_I_r_thread Irt;
@@ -470,6 +475,7 @@ void receiver(char *ip, int port, int listen_port)
     struct for_g_f_r_s_thread *gfrst;
 
     send_sock=socket(PF_INET, SOCK_STREAM, 0);
+    setsockopt(send_sock, SOL_SOCKET, SO_REUSEADDR, &option, sizeof(option));
 	if(send_sock == -1)
 		error_handling("socket() error");
 
@@ -482,9 +488,6 @@ void receiver(char *ip, int port, int listen_port)
 		error_handling("connect() error!");
     else printf("connected!!");
 
-    // while(connect(send_sock, (struct sockaddr*)&send_addr, sizeof(send_addr))==-1) 
-	// 	printf("connect() error!");
-    // printf("connected!!");
 
     
     //my_no받기, listen port 보내기
@@ -509,7 +512,7 @@ void receiver(char *ip, int port, int listen_port)
     printf("받을 파일 수: %d\n", will_get_f);
     //다른 recver가 파일 보낼 수 있도록 thread 생성
     my_sock = socket(PF_INET, SOCK_STREAM, 0);
-
+    setsockopt(my_sock, SOL_SOCKET, SO_REUSEADDR, &option, sizeof(option));
     my_addr.sin_family = AF_INET;
     my_addr.sin_addr.s_addr = htonl(INADDR_ANY);
     my_addr.sin_port = htons(listen_port);
