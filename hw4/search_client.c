@@ -3,6 +3,7 @@
 #include <unistd.h>
 #include <string.h>
 #include <fcntl.h>
+#include <ctype.h>
 #include <arpa/inet.h>
 #include <sys/socket.h>
 #include <pthread.h>
@@ -55,15 +56,27 @@ void clear_line()
 	printf("\x1b[2K");
 }
 
-
+void to_lowercase(char *str) {
+    for (int i = 0; i < strlen(str); i++) {
+        str[i] = tolower((unsigned char) str[i]);
+    }
+}
 
 void colored(char *result, char *search_word)
 {
 	int search_len = strlen(search_word);
-	char *pos = strstr(result,search_word);
-	printf("%.*s", (int)(pos - result), result);
+    char lower_result[SEARCH_WORD]="";
+    char lower_search[SEARCH_WORD]="";
+    int offset;
+    char *pos;
+    to_lowercase(strcpy(lower_result, result));
+    to_lowercase(strcpy(lower_search, search_word));
+	pos = strstr(lower_result,lower_search);
+    offset = pos - lower_result;
+    pos = result + offset;
+	printf("%.*s", offset, result);
 	printf("%s%.*s%s", COLOR_BLUE, search_len, pos, COLOR_RESET);
-	printf("%s\n", pos + search_len);
+	printf("%s", pos + search_len);
 }
 
 
@@ -105,16 +118,14 @@ int main(int argc, char* argv[])
         move_left_up(1);
         move_right(strlen("Search word: ")+strlen(search_word));
         c = getchar();
-        if (c == 13) 
-        {
+        if (c == 13) {
             clear_line();
 			memset(search_word,0,sizeof(search_word));
             move_left_down(1);
             move_left_up(1);
             printf("Enter q to quit: ");
             c = getchar();
-            if(c == 'q' || c == 'Q') 
-            {
+            if(c == 'q' || c == 'Q') {
                 c = 61;
                 write(sock, &c, sizeof(char));
                 system("stty cooked");
@@ -152,7 +163,8 @@ int main(int argc, char* argv[])
         {
             char result[SEARCH_WORD] = {0};
             read(sock, result, sizeof(result));
-            printf("%s", result);
+            colored(result, search_word);
+            // printf("%s", result);
             move_left_down(1);
             // colored(tolower(*result), tolower(*search_word));
         }
