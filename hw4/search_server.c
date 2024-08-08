@@ -73,9 +73,9 @@ void* handle_client(void *arg)
 
             if(result_count>10)
                 result_count = 10;
-
+            //검색 단어 수 보내기
             write(clnt_sock, &result_count, sizeof(result_count));
-
+            //검색결과 보내기
             for(int i=0; i<result_count; i++)
             {
                 struct data *data = (struct data*)vector_get(results, i);
