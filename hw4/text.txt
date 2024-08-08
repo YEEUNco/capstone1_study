@@ -1,0 +1,19 @@
+Pohang	110000
+Cafe	33000
+Restaurant	303030
+Weather	406070
+Hotel	23432
+Home	202020
+School	600000
+Travel	1000000
+Busan	2000000
+Seoul	3000000
+Pohang Cafe	22000
+Pohang Restaurant	202020
+Pohang Weather	30546
+Pohang Hotel	13484
+Pohang Home	102938
+Pohang School	575757
+Busan Travel	452354
+Seoul Travel	552354
+Pohang Travel	362323
