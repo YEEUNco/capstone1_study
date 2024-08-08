@@ -61,25 +61,22 @@ void* handle_client(void *arg)
                 continue;
             }
             collect(get,results,&result_count);
-            for(int i=0; i<vector_size(results); i++)
-            {
-                struct data *d = (struct data *)vector_get(results, i);
-                printf("vector: %s\n", d->word);
-            }
 
             qsort(vector_get(results,0),result_count,sizeof(struct data*), compare_freq);
-            printf("result_count: %d\n", result_count);
 
             char final[SEARCH_SIZE]={0};
             if(result_count>10)
                 result_count = 10;
+
             write(clnt_sock, &result_count, sizeof(result_count));
+
             for(int i=0; i<result_count; i++)
             {
                 struct data *data = (struct data*)vector_get(results, i);
                 strcpy(final,data->word);
                 write(clnt_sock,final,sizeof(final));
             }
+
             vector_destroy(results);
         }
     }
@@ -114,7 +111,6 @@ int main(int argc, char *argv[])
     set_data(root);
 
     pthread_t t_id;
-    int check=0;
     
     while(1)
     {
