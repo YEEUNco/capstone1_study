@@ -12,13 +12,11 @@
 #define EPOLL_SIZE 50
 #define SEARCH_SIZE 1024
 
-
 struct client_data{
     int clnt_sock;
     struct trie *root;
     char search_word[SEARCH_SIZE];
 };
-
 
 void* handle_client(void *arg)
 {
@@ -28,23 +26,29 @@ void* handle_client(void *arg)
     char search_word[SEARCH_SIZE] = "";
     vector results;
     int result_count = 0;
-    //글자를 하나씩 받아서 처리
+
+    //글자를 하나씩 받아서 검색결과 보내줌
     while(1)
     {
         char temp;
         int read_cnt = read(clnt_sock, &temp, sizeof(char));
+        char final[SEARCH_SIZE]={0};
         printf("temp: %c\n", temp);
+
+        //client종료
         if(temp == 61)
         {
             close(clnt_sock);
             free(data);
             break;
         }
+        //client word reset
         else if(temp == 92)
         {
             memset(search_word, 0, sizeof(search_word));
             continue;
         }
+        //client word 이어받음
         else
         {
             strncat(search_word,&temp,1);
@@ -52,6 +56,7 @@ void* handle_client(void *arg)
 
             results = vector_create();
             result_count = 0;
+
             //search함수를 통해서 search_word의 마지막 노드를 받는다
             struct trie *get = search(root,search_word);
             if(get == NULL)
@@ -60,11 +65,12 @@ void* handle_client(void *arg)
                 write(clnt_sock, &result_count, sizeof(result_count));
                 continue;
             }
-            collect(get,results,&result_count);
 
+            //관련 단어 찾기
+            collect(get,results,&result_count);
+            //빈도수로 sorting하기
             qsort(vector_get(results,0),result_count,sizeof(struct data*), compare_freq);
 
-            char final[SEARCH_SIZE]={0};
             if(result_count>10)
                 result_count = 10;
 
