@@ -21,16 +21,6 @@ void error_handling(char *message)
 	exit(1);
 }
 
-void move_up(int lines)
-{
-	printf("\x1b[%dA", lines);
-}
-
-void move_down(int lines)
-{
-	printf("\x1b[%dB", lines);
-}
-
 void move_left_up(int lines)
 {
     printf("\x1b[%dA\r", lines);
@@ -56,8 +46,10 @@ void clear_line()
 	printf("\x1b[2K");
 }
 
-void to_lowercase(char *str) {
-    for (int i = 0; i < strlen(str); i++) {
+void to_lowercase(char *str) 
+{
+    for (int i = 0; i < strlen(str); i++) 
+    {
         str[i] = tolower((unsigned char) str[i]);
     }
 }
@@ -104,11 +96,9 @@ int main(int argc, char* argv[])
     if(connect(sock, (struct sockaddr*)&serv_addr, sizeof(serv_addr))==-1) 
 		error_handling("connect() error!");
 	
-
 	char c;
 	char search_word[SEARCH_WORD]={0};
     int result_count = 0;
-    // printf("%ld\n", strlen(search_word));
 	while(1) 
     {
         system("stty raw"); 
@@ -118,14 +108,16 @@ int main(int argc, char* argv[])
         move_left_up(1);
         move_right(strlen("Search word: ")+strlen(search_word));
         c = getchar();
-        if (c == 13) {
+        if (c == 13) 
+        {
             clear_line();
 			memset(search_word,0,sizeof(search_word));
             move_left_down(1);
             move_left_up(1);
             printf("Enter q to quit: ");
             c = getchar();
-            if(c == 'q' || c == 'Q') {
+            if(c == 'q' || c == 'Q') 
+            {
                 c = 61;
                 write(sock, &c, sizeof(char));
                 system("stty cooked");
@@ -144,37 +136,27 @@ int main(int argc, char* argv[])
         write(sock, &c, sizeof(char));
         sleep(1);
 
-        // printf("count: %d\n",result_count);
-
         move_left_down(2);
         for(int i = 0; i < result_count; i++) 
         {
             clear_line();
             move_left_down(1);
-            // printf("\n");
         }
         if(result_count != 0)   
             move_left_up(result_count);
 
         read(sock, &result_count, sizeof(result_count));
 
-
         for(int i = 0; i < result_count; i++) 
         {
             char result[SEARCH_WORD] = {0};
             read(sock, result, sizeof(result));
             colored(result, search_word);
-            // printf("%s", result);
             move_left_down(1);
-            // colored(tolower(*result), tolower(*search_word));
         }
-
-        if(result_count != 0)
-            move_left_up(2+result_count);
-        else
-            move_left_up(2);
+        
+        move_left_up(2+result_count);
     }
-
 
 	system("stty cooked");
     close(sock);
