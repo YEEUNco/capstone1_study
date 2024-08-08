@@ -70,18 +70,14 @@ struct trie* insert(struct trie *root, char *word, int freq, char *sentence)
         vector_push(temp->word_list, data);
 		printf("check data: %s, %d\n", data->word, data->freq);
     }
-	//debug
-	// printf("check data: %s, %d\n", data->word, data->freq);
     return root;
 }
 
 //freq를 desc으로 sorting
 int compare_freq(const void *a, const void *b)
 {
-    // printf("compare? \n");
     struct data *A = (struct data *)a;
     struct data *B = (struct data *)b;
-    // printf("core dump?");
     return B->freq - A->freq;
 }
 
@@ -126,7 +122,6 @@ struct trie * search(struct trie *root, char *prefix)
             return NULL;
         }
         temp = temp->children[idx];
-        // printf("??");
     
     }
     printf("search :%c\n", temp->data);
