@@ -20,7 +20,7 @@ void error_handling(char *message)
 	fputc('\n', stderr);
 	exit(1);
 }
-
+//콘솔 제어 관련 함수들
 void move_left_up(int lines)
 {
     printf("\x1b[%dA\r", lines);
@@ -45,7 +45,7 @@ void clear_line()
 {
 	printf("\x1b[2K");
 }
-
+//string 소분자 변환 함수
 void to_lowercase(char *str) 
 {
     for (int i = 0; i < strlen(str); i++) 
@@ -53,7 +53,7 @@ void to_lowercase(char *str)
         str[i] = tolower((unsigned char) str[i]);
     }
 }
-
+//결과 색 입혀서 출력하는 함수
 void colored(char *result, char *search_word)
 {
 	int search_len = strlen(search_word);
