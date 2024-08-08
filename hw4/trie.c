@@ -11,6 +11,7 @@ void error_handling(char *message)
 	exit(1);
 }
 
+//노드 만드는 함수
 struct trie* make_node(char data)
 {
     struct trie *node = (struct trie*)calloc(1, sizeof(struct trie));
@@ -24,7 +25,7 @@ struct trie* make_node(char data)
 
     return node;
 }
-
+//노드 free함수
 void free_node(struct trie *node)
 {
     for(int i=0; i<ALPHA; i++)
@@ -35,7 +36,7 @@ void free_node(struct trie *node)
     vector_destroy(node->word_list);
     free(node);
 }
-
+//노드 추가 함수
 struct trie* insert(struct trie *root, char *word, int freq, char *sentence)
 {
     struct trie *temp = root;
@@ -101,7 +102,7 @@ void collect(struct trie *node, vector results, int *result_count)
             collect(node->children[i],results,result_count);
     }
 }
-
+//노드 검색함수 
 struct trie * search(struct trie *root, char *prefix)
 {
     struct trie *temp = root;
