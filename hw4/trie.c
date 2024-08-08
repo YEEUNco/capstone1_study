@@ -130,7 +130,7 @@ struct trie * search(struct trie *root, char *prefix)
     return temp;
     
 }
-
+//파일 읽어서 노드 만들기 전 전처리 함수
 void set_data(struct trie *root)
 {
     FILE *fp;
