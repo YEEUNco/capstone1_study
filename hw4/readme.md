@@ -9,6 +9,8 @@ enter키 사용시 string검색 완료
 
 그 외의 키를 눌렀을 시 다시 reset된 search word를 시작할 수 있다.
 
+
+
 ### 주의사항
 - delete키 지원 안함!! 잘못 눌렀으면 enter키 실행 후 처음부터 다시 검색하세요!
 
