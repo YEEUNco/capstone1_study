@@ -7,11 +7,15 @@
 #include <arpa/inet.h>
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <sys/time.h>
 #include "vector.h"
 
 #define BUF_SIZE 1024
 
 pthread_mutex_t mutex;
+
+struct timeval  tv;
+double begin, end;
 
 struct file_info{
     int n_th;
@@ -101,30 +105,25 @@ int split_file(vector file_data, char* file_name, int seg_size)
     return count;
 }
 
-//testing 함수
-void sf_testing(char* file_name, int seg_size)
-{
-    vector file_data = vector_create();
-    int count = split_file(file_data, file_name, seg_size);
-    printf("%d\n", count);
-    for(int i=0; i<vector_size(file_data); i++)
-    {
-        struct file_info *fd = ((struct file_info*) vector_get(file_data, i));
-        printf("%ld\n", fd->file_size);
-    }
-
-}
-
 void *send_file_from_sender(void *arg)
 {
     struct for_s_f_thread sft = *((struct for_s_f_thread*)arg);
     struct file_info fi = *(sft.fi);
+    double time_sec, Mbps;
 
     pthread_mutex_lock(&mutex);
+    gettimeofday(&tv, NULL);
+    begin = (tv.tv_sec) * 1000.0 + (tv.tv_usec) / 1000.0;
+
     write(sft.sock, &(fi.n_th), sizeof(fi.n_th));
     write(sft.sock, &(fi.file_size), sizeof(fi.file_size));
-    printf("%d번째 파일, file_size: %ld\n", fi.n_th, fi.file_size);
     write(sft.sock, fi.contents, fi.file_size);
+
+    gettimeofday(&tv, NULL);
+	end = (tv.tv_sec) * 1000.0 + (tv.tv_usec) / 1000.0;
+    time_sec = (end - begin) / 1000.0; 
+    Mbps = (fi.file_size * 8.0) / (time_sec * 1000000.0);
+    printf("To receving peer #%d: %fMbps (%ld Bytes Sent / %fs)\n", fi.n_th, Mbps,fi.file_size,time_sec);
     pthread_mutex_unlock(&mutex);
     
     free(sft.fi->contents);
@@ -201,14 +200,13 @@ void sender(int max_peer, char *file_name, int seg_size, int listen_port)
         
         if(rb == recv_count)
             rb = 0;
-        // printf("rb: %d\n", rb);
+
         struct for_s_f_thread *sft = (struct for_s_f_thread *)malloc(sizeof(struct for_s_f_thread));
         sft->sock = recv_sock[rb];
         fi = ((struct file_info*)vector_get(file_data, i));
         sft->fi = fi;
 
         pthread_create(&t_id[i], NULL, send_file_from_sender, sft);
-        // pthread_join(t_id[i], NULL);
 
         rb++;
     }
@@ -225,6 +223,7 @@ void sender(int max_peer, char *file_name, int seg_size, int listen_port)
     free(t_id);
 }
 
+//recv peer로 부터 오는 파일 받는 함수
 void *recv_file_from_recv(void *arg)
 {
     struct for_I_r_thread Irt = *((struct for_I_r_thread*)arg);
@@ -252,18 +251,29 @@ void *recv_file_from_recv(void *arg)
     else 
         printf("conntected");
     
-    //현재 내가 누구랑 connect 됐는지
+    //total 몇개의 파일을 받야하는지
     read(recv_sock, &count, sizeof(count));
-    printf("내가 지금 이 쓰레드에서 몇개 받아야하지? %d\n", count);
+
     //file받음
     for(int i = 0; i < count; i++)
     {
+        struct timeval  local_tv;
+        double local_begin, local_end;
+        double local_time_sec, local_Mbps;
+        
         fi = (struct file_info *)malloc(sizeof(struct file_info));
+        //file segment받기
         read(recv_sock, &n_th, sizeof(n_th));
         fi->n_th = n_th;
+        //file size받기
         read(recv_sock, &file_size, sizeof(file_size));
         fi->file_size = file_size;
-        printf("nth: %d, filesize:%ld\n", fi->n_th, fi->file_size);
+      
+        //thoughtput 측정 시작
+        gettimeofday(&local_tv, NULL);
+        local_begin = (local_tv.tv_sec) * 1000.0 + (local_tv.tv_usec) / 1000.0;
+
+        //파일 내용 받기
         buf = (char*)malloc(sizeof(char)*fi->file_size);
         for(int i=0; i<fi->file_size; )
         {
@@ -275,22 +285,28 @@ void *recv_file_from_recv(void *arg)
             memcpy(buf+i,temp_buf,read_cnt);
             
             i+=read_cnt;
-            // printf("read_cnt: %d\n", read_cnt);
-            // printf("total_read_cnt: %d\n", i);
+
         }
         fi->contents = buf;
-        // printf("%s\n",buf);
+
         //그리고 저장
         fi_arr[fi->n_th] = fi;
+
+        //throughput 측정 종료
+        gettimeofday(&local_tv, NULL);
+        local_end = (local_tv.tv_sec) * 1000.0 + (local_tv.tv_usec) / 1000.0;
+        local_time_sec = (local_end - local_begin) / 1000.0; 
+        local_Mbps = (fi->file_size * 8.0) / (local_time_sec * 1000000.0);
+        printf("From Receiving Peer #%d: %fMbps (%ld Bytes Sent / %fs)\n", fi->n_th,local_Mbps,fi->file_size,local_time_sec);
     }
 
     return NULL;
 
 }
 
+//recv peer에게 파일 보내는 함수
 void *send_file_to_recv(void *arg)
 {
-    // printf("send_file_to_recv\n");
     struct for_sftr_thread sftr = *((struct for_sftr_thread*)arg);
     int sock = sftr.sock;
     struct file_info fi = sftr.fi;
@@ -298,14 +314,13 @@ void *send_file_to_recv(void *arg)
     write(sock, &(fi.n_th), sizeof(fi.n_th));
     write(sock, &(fi.file_size), sizeof(fi.file_size));
     write(sock, fi.contents, fi.file_size);
-    printf("sftr: nth: %d file_size: %ld\n", fi.n_th, fi.file_size);
     
     return NULL;
 }
 
+//sender에게서 파일 받는 함수
 void *get_file_from_sender(void *arg)
 {
-    printf("get_file_from_sender\n");
     struct for_g_f_r_s_thread fgrs = *((struct for_g_f_r_s_thread*)arg);
     int will_get_f = fgrs.will_get_f;
     int send_sock = fgrs.send_sock;
@@ -329,20 +344,13 @@ void *get_file_from_sender(void *arg)
 
     pthread_t *t_id = (pthread_t*)malloc(sizeof(pthread_t) * (will_get_f * (recv_count-1) ));
     sftrth = (struct for_sftr_thread*)malloc(sizeof(struct for_sftr_thread) * (will_get_f * (recv_count-1)));
-    //연결을 다해준다
+    
+    //recv 연결을 다해준다
     sock_arr = (int *)malloc(sizeof(int) * (recv_count));
     addr_arr = (struct sockaddr_in*)malloc(sizeof(struct sockaddr_in) * (recv_count));
 
-    //debug
     for(int i=0; i<recv_count; i++)
     {
-        printf("%d IP: %s\n", i, inet_ntoa(ri_arr[i].ip));
-        printf("%d PORT: %d\n", i, ri_arr[i].port);
-    }
-    //debug
-    for(int i=0; i<recv_count; i++)
-    {
-        printf("**%d**\n", i);
         if(i == my_no)
             continue;
         sock_arr[i] = socket(PF_INET, SOCK_STREAM, 0);
@@ -358,22 +366,26 @@ void *get_file_from_sender(void *arg)
         printf("%d PORT: %d\n", i, ri_arr[i].port);
 
         while(connect(sock_arr[i], (struct sockaddr*)&addr_arr[i], sizeof(addr_arr[i]))==-1);
-		    // printf("connect() error!\n");
-        printf("[%d] conntected!!\n", i);
         //몇개의 파일을 받아야하는지 알려줌
         write(sock_arr[i], &will_get_f, sizeof(will_get_f));
     }
 
-    //file 받음
+    //sender로부터 file 받음
     for(int i =  0; i < will_get_f; i++)
     {
+        struct timeval  local_tv;
+        double local_begin, local_end;
+        double local_time_sec, local_Mbps;
+        
         fi = (struct file_info*)malloc(sizeof(struct file_info));
+        
         read(send_sock, &n_th, sizeof(n_th));
         fi->n_th = n_th;
         read(send_sock, &file_size, sizeof(file_size));
         fi->file_size = file_size;
-        printf("%d번째 file 정보, size: %ld\n", n_th, file_size);
-        printf("%d번째 file 정보, size: %ld\n", fi->n_th, fi->file_size);
+
+        gettimeofday(&local_tv, NULL);
+        local_begin = (local_tv.tv_sec) * 1000.0 + (local_tv.tv_usec) / 1000.0;
         buf = (char*)malloc(sizeof(char)*fi->file_size);
         for(int i=0; i<fi->file_size; )
         {
@@ -385,20 +397,24 @@ void *get_file_from_sender(void *arg)
             memcpy(buf+i,temp_buf,read_cnt);
             
             i+=read_cnt;
-            // printf("read_cnt: %d\n", read_cnt);
-            // printf("total_read_cnt: %d\n", i);
+
         }
         fi->contents = buf;
-        // printf("%s\n", buf);
-        fi_arr[fi->n_th] = fi;
 
+        fi_arr[fi->n_th] = fi;
+        gettimeofday(&local_tv, NULL);
+        local_end = (local_tv.tv_sec) * 1000.0 + (local_tv.tv_usec) / 1000.0;
+        local_time_sec = (local_end - local_begin) / 1000.0; 
+        local_Mbps = (fi->file_size * 8.0) / (local_time_sec * 1000000.0);
+        printf("From Sending Peer #%d: %fMbps (%ld Bytes Sent / %fs)\n", fi->n_th,local_Mbps,fi->file_size,local_time_sec);
+
+        
+        //recv peer에게 파일 보내줌
         for(int k = 0; k < recv_count; k++)
         {
-            printf("k : %d\n", k);
             if(k == my_no)
                 continue;
-            //항상 : sock, struct file_data
-            // printf("k : %d\n", k);
+
             sftrth[count].sock = sock_arr[k];
             sftrth[count].fi = *fi;
             pthread_create(&t_id[count], NULL, send_file_to_recv, &sftrth[count]);
@@ -408,8 +424,6 @@ void *get_file_from_sender(void *arg)
 
     for(int i = 0; i < will_get_f * (recv_count-1); i++)
         pthread_join(t_id[i], NULL);
-
-    printf("here?2\n");
     
     free(t_id);
     free(arg);
@@ -417,20 +431,13 @@ void *get_file_from_sender(void *arg)
     return NULL;
 }
 
+//받은 파일 조각들을 저장하는 함수
 void save_file(struct file_info **fi, int file_count)
 {
-    // printf("save_file\n");
     FILE *fp;
     int write_cnt = 0;
     if((fp = fopen("save.jpg", "wb")) == NULL)
         error_handling("opening file failed");
-
-    //debug
-    // for(int i=0; i<file_count; i++)
-    // {
-    //     printf("save_file** n_th: %d, file_size: %ld\n", fi[i]->n_th, fi[i]->file_size);
-    // }
-    //debug
 
     for(int i = 0; i < file_count; i++)
     {
@@ -438,7 +445,6 @@ void save_file(struct file_info **fi, int file_count)
         while(write_cnt < fi[i]->file_size)
         {
             write_cnt += fwrite(fi[i]->contents+write_cnt, 1, fi[i]->file_size - write_cnt,fp);
-            // printf("write cnt: %d\n", write_cnt);
         }
     }
 
@@ -492,14 +498,11 @@ void receiver(char *ip, int port, int listen_port)
     
     //my_no받기, listen port 보내기
     read(send_sock, &my_no, sizeof(my_no));
-    printf("my_no: %d\n", my_no);
     write(send_sock, &listen_port, sizeof(listen_port));
 
     //사전 정보 받기(recv_count, file_count, struct recv_info)
     read(send_sock, &recv_count, sizeof(recv_count));
-    printf("recv_count: %d\n", recv_count);
     read(send_sock, &file_count, sizeof(file_count));
-    printf("file_count: %d\n", file_count);
     recv_info = (struct recv_info*)malloc(sizeof(struct recv_info) * recv_count);
     for(int i = 0; i < recv_count; i++)
     {
@@ -509,7 +512,7 @@ void receiver(char *ip, int port, int listen_port)
     will_get_f = file_count/recv_count;
     if((my_no+1) <= (file_count % recv_count)) 
         will_get_f++;
-    printf("받을 파일 수: %d\n", will_get_f);
+  
     //다른 recver가 파일 보낼 수 있도록 thread 생성
     my_sock = socket(PF_INET, SOCK_STREAM, 0);
     setsockopt(my_sock, SOL_SOCKET, SO_REUSEADDR, &option, sizeof(option));
@@ -523,7 +526,7 @@ void receiver(char *ip, int port, int listen_port)
 	if (listen(my_sock, 5) == -1)
 		error_handling("listen() error");
 
-    //파일 받기
+    //recv로부터 파일 받기
     fi = (struct file_info**)malloc(sizeof(struct file_info*) * file_count);
     Irt.fi = fi;
     Irt.my_sock = my_sock;
@@ -610,13 +613,7 @@ int main(int argc, char *argv[])
             printf("Sending peer requires -n, -f, -g, and -p options\n");
             exit(0);
         }
-        printf("Running as sending peer\n");
-        printf("Max peers: %d\n", max_peer);
-        printf("File name: %s\n", file_name);
-        printf("Segment size: %d KB\n", segment_size);
-        printf("Listen port: %d\n", listen_port);
         sender(max_peer,file_name, segment_size,listen_port);
-        // sf_testing(file_name,segment_size);
     }
     else if(flag_r)
     {
@@ -625,11 +622,6 @@ int main(int argc, char *argv[])
             printf("Receiving peer requires -a and -p options\n");
             exit(0);
         }
-        printf("Running as receiving peer\n");
-        printf("Sender IP: %s\n", sender_ip);
-        printf("Sender port: %d\n", sender_port);
-        printf("Listen port: %d\n", listen_port);
         receiver(sender_ip, sender_port, listen_port);
-
     }
 }
