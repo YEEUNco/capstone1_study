@@ -8,6 +8,8 @@ receving peer로 실행시
 </br>Receiving peer requires -a and -p options
 
 Usage: [-s] [-n max_peer] [-f file_name] [-g segment_size] [-r] [-a sender_ip:sender_port] [-p listen_port]
+</br>
+</br>
 
 sending peer가 요구하는 receving peer수만큼 접속해야 프로그램 시작
 
